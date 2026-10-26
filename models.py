@@ -1,5 +1,6 @@
 from database import Base
 from sqlalchemy import Column, Integer, String, Date
+from datetime import date
 
 class User(Base):
     __tablename__ = "users"
@@ -16,8 +17,8 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     ques_no = Column(String(100), nullable=False)
     task_date = Column(Date, nullable=False)
-    status = Column(String(50), default="NULL", nullable=False)
-    difficulty = Column(String(50), default="NULL", nullable=False)
-    completed_at = Column(Date, default="NULL", nullable=True)
+    status = Column(String(50), default="Pending", nullable=True)
+    difficulty = Column(String(50), default=None, nullable=False)
+    completed_at = Column(Date, nullable=True)
     created_at = Column(Date, nullable=True)
 
