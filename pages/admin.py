@@ -1,43 +1,67 @@
+from datetime import date
+
 import streamlit as st
-import requests
 
-st.title("Welcome to the Admin Page!")
+from api_client import api
+from dashboard import analytics_view, task_metrics, task_table
 
+st.title("Admin dashboard")
+section = st.sidebar.radio("Admin", ["Add task", "Task status", "Analytics"])
+st.header(section)
 
-st.header("Admin Dashboard")
+if section != "Add task":
+    students = api("GET", "/students")
+    if students is None:
+        st.stop()
+    if not students:
+        st.info("Add a student account to view progress.")
+        st.stop()
 
-admin_page = st.sidebar.selectbox(
-    "Admin",
-    [
-        "Add Task",
-        "Task Status",
-        "Analytics"
-    ]
-)
+    labels = {
+        student["id"]: f"{student['username']} ({student['email']})"
+        for student in students
+    }
+    student_id = st.selectbox(
+        "Student",
+        list(labels),
+        format_func=labels.__getitem__,
+    )
 
-if admin_page == "Add Task":
+if section == "Add task":
+    calendar = api("GET", "/calendar/today")
+    if calendar is not None:
+        with st.form("add_task"):
+            assigned_date = st.date_input("Assign for", date.fromisoformat(calendar["date"]))
+            question = st.text_input("Question identifier", max_chars=100)
+            submitted = st.form_submit_button("Add task", type="primary")
 
-    st.header("Add Task")
+        if submitted:
+            if not question.strip():
+                st.warning("Enter a question identifier.")
+            else:
+                task = api(
+                    "POST",
+                    "/tasks",
+                    json={"task_date": assigned_date.isoformat(), "ques_no": question.strip()},
+                )
+                if task is not None:
+                    st.success(f"Assigned {task['ques_no']} for {task['task_date']}.")
 
-    task_date = st.date_input("Task Date (YYYY-MM-DD)")
+elif section == "Task status":
+    date_column, status_column = st.columns(2)
+    assigned_date = date_column.date_input("Assigned date", value=None)
+    status = status_column.selectbox("Status", ["All", "Pending", "Completed"])
 
-    question = st.text_input("Question Number ")
+    filters = {"student_id": student_id}
+    if assigned_date:
+        filters["task_date"] = assigned_date.isoformat()
+    if status != "All":
+        filters["status"] = status
 
-    submitted = st.button("Submit Task")
+    tasks = api("GET", "/tasks", params=filters)
+    if tasks is not None:
+        task_metrics(tasks)
+        task_table(tasks)
 
-    if submitted:
-        response = requests.post(
-            "http://localhost:8000/tasks",
-            params = {
-                "task_date": task_date.isoformat(),
-                "q_no": question
-            }
-        )
-
-        if response.status_code == 200:
-                st.success(f"Task submitted successfully! Task Date: {task_date}, Question Number: {question}")
-        else:
-                st.error("Failed. Please try again.")
-
-
-
+else:
+    analytics_view(admin=True, student_id=student_id)
